@@ -1,0 +1,230 @@
+pipelines:
+  branches:
+    feature/*:
+      - step:
+          image: atlassian/pipelines-awscli:1.16.29
+          name: "Build Docker Image"
+          services:
+            - docker
+          script:
+            - export BUILDTIME=$(date -u +"%Y-%m-%d-%H-%M-%SZ")
+            - export BRANCH=$(echo $BITBUCKET_BRANCH | sed -e 's/^.*origin\///g' -e 's/-/_/g' -e 's/\//_/g')
+            - export REPO_PATH=354966333954.dkr.ecr.eu-west-1.amazonaws.com/chartermatch/leon-connector:${BRANCH}-${BUILDTIME}
+            - $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+            - docker build -t chartermatch/leon-connector .
+            - docker tag chartermatch/leon-connector:latest ${REPO_PATH}
+            - docker push ${REPO_PATH}
+            - echo "${REPO_PATH}" >> properties.txt
+            - cat properties.txt
+          artifacts:
+            - properties.txt
+          caches:
+            - docker
+      - step:
+          image: atlassian/pipelines-awscli:1.16.29
+          name: "[Xclusive] Deploy to Development"
+          trigger: manual
+          script:
+            - export STAGE="development"
+            - export IMAGE_LOCATION=$(cat properties.txt)
+            - export ECS_CLUSTER_NAME="development-chartermatch-ecs-cluster"
+            - export SERVICE_NAME="${STAGE}-xclusive-connector"
+            - apk add gettext
+            - eval "$(python ./deployment/env.py XCLUSIVE_DEVELOPMENT)"
+            - envsubst < deployment/task-definition.json | tee ${SERVICE_NAME}-task-definition.json
+            - export TASK_VERSION=$(aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-task-definition.json | jq --raw-output '.taskDefinition.revision')
+            - echo "Registered ECS Task Definition:" "${TASK_VERSION}"
+            - envsubst < deployment/service-definition.json | tee ${SERVICE_NAME}-service-definition.json
+            - aws ecs list-services --cluster "${ECS_CLUSTER_NAME}"  | grep "${SERVICE_NAME}" || aws ecs create-service --cli-input-json file://${SERVICE_NAME}-service-definition.json
+            - envsubst < deployment/service-update.json | tee ${SERVICE_NAME}-service-update.json
+            - aws ecs update-service --cli-input-json file://${SERVICE_NAME}-service-update.json
+            - echo "Waiting for ${SERVICE_NAME} to be deployed successfully"
+            - aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${SERVICE_NAME}"
+            - echo "${SERVICE_NAME} deployed successfully"
+      - step:
+          image: atlassian/pipelines-awscli:1.16.29
+          name: "[Catreus] Deploy to Development"
+          trigger: manual
+          script:
+            - export STAGE="development"
+            - export IMAGE_LOCATION=$(cat properties.txt)
+            - export ECS_CLUSTER_NAME="development-chartermatch-ecs-cluster"
+            - export SERVICE_NAME="${STAGE}-catreus-connector"
+            - apk add gettext
+            - eval "$(python ./deployment/env.py CATREUS_DEVELOPMENT)"
+            - envsubst < deployment/task-definition.json | tee ${SERVICE_NAME}-task-definition.json
+            - export TASK_VERSION=$(aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-task-definition.json | jq --raw-output '.taskDefinition.revision')
+            - echo "Registered ECS Task Definition:" "${TASK_VERSION}"
+            - envsubst < deployment/service-definition.json | tee ${SERVICE_NAME}-service-definition.json
+            - aws ecs list-services --cluster "${ECS_CLUSTER_NAME}"  | grep "${SERVICE_NAME}" || aws ecs create-service --cli-input-json file://${SERVICE_NAME}-service-definition.json
+            - envsubst < deployment/service-update.json | tee ${SERVICE_NAME}-service-update.json
+            - aws ecs update-service --cli-input-json file://${SERVICE_NAME}-service-update.json
+            - echo "Waiting for ${SERVICE_NAME} to be deployed successfully"
+            - aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${SERVICE_NAME}"
+            - echo "${SERVICE_NAME} deployed successfully"
+      - step:
+          image: atlassian/pipelines-awscli:1.16.29
+          name: "[ACS] Deploy to Development"
+          trigger: manual
+          script:
+            - export STAGE="development"
+            - export IMAGE_LOCATION=$(cat properties.txt)
+            - export ECS_CLUSTER_NAME="development-chartermatch-ecs-cluster"
+            - export SERVICE_NAME="${STAGE}-acs-connector"
+            - apk add gettext
+            - eval "$(python ./deployment/env.py ACS_DEVELOPMENT)"
+            - envsubst < deployment/task-definition.json | tee ${SERVICE_NAME}-task-definition.json
+            - export TASK_VERSION=$(aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-task-definition.json | jq --raw-output '.taskDefinition.revision')
+            - echo "Registered ECS Task Definition:" "${TASK_VERSION}"
+            - envsubst < deployment/service-definition.json | tee ${SERVICE_NAME}-service-definition.json
+            - aws ecs list-services --cluster "${ECS_CLUSTER_NAME}"  | grep "${SERVICE_NAME}" || aws ecs create-service --cli-input-json file://${SERVICE_NAME}-service-definition.json
+            - envsubst < deployment/service-update.json | tee ${SERVICE_NAME}-service-update.json
+            - aws ecs update-service --cli-input-json file://${SERVICE_NAME}-service-update.json
+            - echo "Waiting for ${SERVICE_NAME} to be deployed successfully"
+            - aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${SERVICE_NAME}"
+            - echo "${SERVICE_NAME} deployed successfully"
+    master:
+      - step:
+          image: atlassian/pipelines-awscli:1.16.29
+          name: "Build Docker Image"
+          services:
+            - docker
+          script:
+            - export BUILDTIME=$(date -u +"%Y-%m-%d-%H-%M-%SZ")
+            - export BRANCH=$(echo $BITBUCKET_BRANCH | sed -e 's/^.*origin\///g' -e 's/-/_/g' -e 's/\//_/g')
+            - export REPO_PATH=354966333954.dkr.ecr.eu-west-1.amazonaws.com/chartermatch/leon-connector:${BRANCH}-${BUILDTIME}
+            - $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+            - docker build -t chartermatch/leon-connector .
+            - docker tag chartermatch/leon-connector:latest ${REPO_PATH}
+            - docker push ${REPO_PATH}
+            - echo "${REPO_PATH}" >> properties.txt
+            - cat properties.txt
+          artifacts:
+            - properties.txt
+          caches:
+            - docker
+      - parallel:
+        - step:
+            image: atlassian/pipelines-awscli:1.16.29
+            name: "[Xclusive] Deploy to Staging"
+            script:
+              - export STAGE="staging"
+              - export IMAGE_LOCATION=$(cat properties.txt)
+              - export ECS_CLUSTER_NAME="development-chartermatch-ecs-cluster"
+              - export SERVICE_NAME="${STAGE}-xclusive-connector"
+              - apk add gettext
+              - eval "$(python ./deployment/env.py XCLUSIVE_STAGING)"
+              - envsubst < deployment/task-definition.json | tee ${SERVICE_NAME}-task-definition.json
+              - export TASK_VERSION=$(aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-task-definition.json | jq --raw-output '.taskDefinition.revision')
+              - echo "Registered ECS Task Definition:" "${TASK_VERSION}"
+              - envsubst < deployment/service-definition.json | tee ${SERVICE_NAME}-service-definition.json
+              - aws ecs list-services --cluster "${ECS_CLUSTER_NAME}"  | grep "${SERVICE_NAME}" || aws ecs create-service --cli-input-json file://${SERVICE_NAME}-service-definition.json
+              - envsubst < deployment/service-update.json | tee ${SERVICE_NAME}-service-update.json
+              - aws ecs update-service --cli-input-json file://${SERVICE_NAME}-service-update.json
+              - echo "Waiting for ${SERVICE_NAME} to be deployed successfully"
+              - aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${SERVICE_NAME}"
+              - echo "${SERVICE_NAME} deployed successfully"
+        - step:
+            image: atlassian/pipelines-awscli:1.16.29
+            name: "[Catreus] Deploy to Staging"
+            script:
+              - export STAGE="staging"
+              - export IMAGE_LOCATION=$(cat properties.txt)
+              - export ECS_CLUSTER_NAME="development-chartermatch-ecs-cluster"
+              - export SERVICE_NAME="${STAGE}-catreus-connector"
+              - apk add gettext
+              - eval "$(python ./deployment/env.py CATREUS_STAGING)"
+              - envsubst < deployment/task-definition.json | tee ${SERVICE_NAME}-task-definition.json
+              - export TASK_VERSION=$(aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-task-definition.json | jq --raw-output '.taskDefinition.revision')
+              - echo "Registered ECS Task Definition:" "${TASK_VERSION}"
+              - envsubst < deployment/service-definition.json | tee ${SERVICE_NAME}-service-definition.json
+              - aws ecs list-services --cluster "${ECS_CLUSTER_NAME}"  | grep "${SERVICE_NAME}" || aws ecs create-service --cli-input-json file://${SERVICE_NAME}-service-definition.json
+              - envsubst < deployment/service-update.json | tee ${SERVICE_NAME}-service-update.json
+              - aws ecs update-service --cli-input-json file://${SERVICE_NAME}-service-update.json
+              - echo "Waiting for ${SERVICE_NAME} to be deployed successfully"
+              - aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${SERVICE_NAME}"
+              - echo "${SERVICE_NAME} deployed successfully"
+        - step:
+            image: atlassian/pipelines-awscli:1.16.29
+            name: "[ACS] Deploy to Staging"
+            script:
+              - export STAGE="staging"
+              - export IMAGE_LOCATION=$(cat properties.txt)
+              - export ECS_CLUSTER_NAME="development-chartermatch-ecs-cluster"
+              - export SERVICE_NAME="${STAGE}-acs-connector"
+              - apk add gettext
+              - eval "$(python ./deployment/env.py ACS_STAGING)"
+              - envsubst < deployment/task-definition.json | tee ${SERVICE_NAME}-task-definition.json
+              - export TASK_VERSION=$(aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-task-definition.json | jq --raw-output '.taskDefinition.revision')
+              - echo "Registered ECS Task Definition:" "${TASK_VERSION}"
+              - envsubst < deployment/service-definition.json | tee ${SERVICE_NAME}-service-definition.json
+              - aws ecs list-services --cluster "${ECS_CLUSTER_NAME}"  | grep "${SERVICE_NAME}" || aws ecs create-service --cli-input-json file://${SERVICE_NAME}-service-definition.json
+              - envsubst < deployment/service-update.json | tee ${SERVICE_NAME}-service-update.json
+              - aws ecs update-service --cli-input-json file://${SERVICE_NAME}-service-update.json
+              - echo "Waiting for ${SERVICE_NAME} to be deployed successfully"
+              - aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${SERVICE_NAME}"
+              - echo "${SERVICE_NAME} deployed successfully"
+      - step:
+          image: atlassian/pipelines-awscli:1.16.29
+          name: "[Xclusive] Deploy to Production"
+          trigger: manual
+          script:
+            - export STAGE="production"
+            - export IMAGE_LOCATION=$(cat properties.txt)
+            - export ECS_CLUSTER_NAME="production-chartermatch-ecs-cluster"
+            - export SERVICE_NAME="${STAGE}-xclusive-connector"
+            - apk add gettext
+            - eval "$(python ./deployment/env.py XCLUSIVE_PRODUCTION)"
+            - envsubst < deployment/task-definition.json | tee ${SERVICE_NAME}-task-definition.json
+            - export TASK_VERSION=$(aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-task-definition.json | jq --raw-output '.taskDefinition.revision')
+            - echo "Registered ECS Task Definition:" "${TASK_VERSION}"
+            - envsubst < deployment/service-definition.json | tee ${SERVICE_NAME}-service-definition.json
+            - aws ecs list-services --cluster "${ECS_CLUSTER_NAME}"  | grep "${SERVICE_NAME}" || aws ecs create-service --cli-input-json file://${SERVICE_NAME}-service-definition.json
+            - envsubst < deployment/service-update.json | tee ${SERVICE_NAME}-service-update.json
+            - aws ecs update-service --cli-input-json file://${SERVICE_NAME}-service-update.json
+            - echo "Waiting for ${SERVICE_NAME} to be deployed successfully"
+            - aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${SERVICE_NAME}"
+            - echo "${SERVICE_NAME} deployed successfully"
+      - step:
+          image: atlassian/pipelines-awscli:1.16.29
+          name: "[Catreus] Deploy to Production"
+          trigger: manual
+          script:
+            - export STAGE="production"
+            - export IMAGE_LOCATION=$(cat properties.txt)
+            - export ECS_CLUSTER_NAME="production-chartermatch-ecs-cluster"
+            - export SERVICE_NAME="${STAGE}-catreus-connector"
+            - apk add gettext
+            - eval "$(python ./deployment/env.py CATREUS_PRODUCTION)"
+            - envsubst < deployment/task-definition.json | tee ${SERVICE_NAME}-task-definition.json
+            - export TASK_VERSION=$(aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-task-definition.json | jq --raw-output '.taskDefinition.revision')
+            - echo "Registered ECS Task Definition:" "${TASK_VERSION}"
+            - envsubst < deployment/service-definition.json | tee ${SERVICE_NAME}-service-definition.json
+            - aws ecs list-services --cluster "${ECS_CLUSTER_NAME}"  | grep "${SERVICE_NAME}" || aws ecs create-service --cli-input-json file://${SERVICE_NAME}-service-definition.json
+            - envsubst < deployment/service-update.json | tee ${SERVICE_NAME}-service-update.json
+            - aws ecs update-service --cli-input-json file://${SERVICE_NAME}-service-update.json
+            - echo "Waiting for ${SERVICE_NAME} to be deployed successfully"
+            - aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${SERVICE_NAME}"
+            - echo "${SERVICE_NAME} deployed successfully"
+      - step:
+          image: atlassian/pipelines-awscli:1.16.29
+          name: "[ACS] Deploy to Production"
+          trigger: manual
+          script:
+            - export STAGE="production"
+            - export IMAGE_LOCATION=$(cat properties.txt)
+            - export ECS_CLUSTER_NAME="production-chartermatch-ecs-cluster"
+            - export SERVICE_NAME="${STAGE}-acs-connector"
+            - apk add gettext
+            - eval "$(python ./deployment/env.py ACS_PRODUCTION)"
+            - envsubst < deployment/task-definition.json | tee ${SERVICE_NAME}-task-definition.json
+            - export TASK_VERSION=$(aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-task-definition.json | jq --raw-output '.taskDefinition.revision')
+            - echo "Registered ECS Task Definition:" "${TASK_VERSION}"
+            - envsubst < deployment/service-definition.json | tee ${SERVICE_NAME}-service-definition.json
+            - aws ecs list-services --cluster "${ECS_CLUSTER_NAME}"  | grep "${SERVICE_NAME}" || aws ecs create-service --cli-input-json file://${SERVICE_NAME}-service-definition.json
+            - envsubst < deployment/service-update.json | tee ${SERVICE_NAME}-service-update.json
+            - aws ecs update-service --cli-input-json file://${SERVICE_NAME}-service-update.json
+            - echo "Waiting for ${SERVICE_NAME} to be deployed successfully"
+            - aws ecs wait services-stable --cluster "${ECS_CLUSTER_NAME}" --services "${SERVICE_NAME}"
+            - echo "${SERVICE_NAME} deployed successfully"
+

@@ -1,0 +1,8 @@
+{
+  "name": "apiato/messagebus",
+  "description": "Messagebus Container for apiato.",
+  "require": {
+    "enqueue/amqp-lib": "^0.8.35",
+    "enqueue/simple-client": "^0.8.28"
+  }
+}

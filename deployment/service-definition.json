@@ -1,0 +1,25 @@
+{
+  "cluster": "$ECS_CLUSTER_NAME",
+  "serviceName": "$SERVICE_NAME",
+  "taskDefinition": "$SERVICE_NAME:$TASK_VERSION",
+  "loadBalancers": [
+    {
+      "targetGroupArn": "$TARGET_GROUP_ARN",
+      "containerName": "$SERVICE_NAME",
+      "containerPort": $SERVICE_PORT
+    }
+  ],
+  "serviceRegistries": [],
+  "desiredCount": $DESIRED_COUNT,
+  "launchType": "FARGATE",
+  "platformVersion": "1.2.0",
+  "placementConstraints": [],
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [$SUBNETS],
+      "securityGroups": [$SECURITY_GROUPS],
+      "assignPublicIp": "DISABLED"
+    }
+  },
+  "healthCheckGracePeriodSeconds": 480
+}

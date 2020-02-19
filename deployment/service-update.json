@@ -1,0 +1,15 @@
+{
+  "cluster": "$ECS_CLUSTER_NAME",
+  "taskDefinition": "$SERVICE_NAME:$TASK_VERSION",
+  "service": "$SERVICE_NAME",
+  "desiredCount": $DESIRED_COUNT,
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [$SUBNETS],
+      "securityGroups": [$SECURITY_GROUPS],
+      "assignPublicIp": "DISABLED"
+    }
+  },
+  "forceNewDeployment": true,
+  "healthCheckGracePeriodSeconds": 480
+}

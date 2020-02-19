@@ -1,0 +1,54 @@
+{
+  "containerDefinitions": [
+    {
+      "essential": true,
+      "image": "$IMAGE_LOCATION",
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "$SERVICE_NAME",
+          "awslogs-region": "eu-west-1",
+          "awslogs-stream-prefix": "${STAGE}"
+        }
+      },
+      "name": "$SERVICE_NAME",
+      "portMappings": [
+        {
+          "containerPort": $SERVICE_PORT,
+          "hostPort": $SERVICE_PORT,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "ENV_FILE_PATH",
+          "value": "$ENV_FILE_PATH"
+        },
+        {
+          "name": "SERVICE_PORT",
+          "value": "$SERVICE_PORT"
+        },
+        {
+          "name": "SERVICE_PATH",
+          "value": "$SERVICE_PATH"
+        }
+      ],
+      "ulimits": [
+        {
+          "name": "nofile",
+          "softLimit": 65536,
+          "hardLimit": 65536
+        }
+      ]
+    }
+  ],
+  "cpu": "1024",
+  "taskRoleArn": "arn:aws:iam::354966333954:role/ecs-instance-role",
+  "executionRoleArn": "arn:aws:iam::354966333954:role/ecs-role",
+  "family": "$SERVICE_NAME",
+  "memory": "4096",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ]
+}
